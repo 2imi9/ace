@@ -24,6 +24,46 @@ pip install fme
 
 See complete documentation [here](https://ai2-climate-emulator.readthedocs.io/en/latest/) and a quickstart guide [here](https://ai2-climate-emulator.readthedocs.io/en/latest/quickstart.html).
 
+### Building an ACE-powered research assistant
+
+If you would like to create an ACE-based agent that can orchestrate climate
+simulations while collaborating with hosted large language models (for example
+OpenAI, Anthropic Claude, or Google Gemini), we recommend the following
+high-level roadmap:
+
+1. **Establish an agent skeleton** – Create a new `fme/agent/` package that can
+   coordinate ACE steppers and aggregators. Expose commands for running
+   simulations, analyzing outputs, and dispatching LLM requests. Support
+   configuration through environment variables or YAML files so different
+   deployments can choose providers and defaults.
+2. **Implement multi-provider LLM clients** – Add provider wrappers under
+   `fme/agent/providers/` implementing a common `LLMClient` interface with
+   retry/backoff logic. Load credentials from the environment and register the
+   providers in a factory for easy selection.
+3. **Hook ACE simulations into the agent** – Reuse existing utilities in
+   `fme/ace/` to prepare inputs, launch simulations, and collect diagnostics.
+   Store structured outputs (e.g., NetCDF, Parquet) and expose metadata that can
+   be summarized for LLM prompts.
+4. **Create scientific prompt templates** – Under `fme/agent/prompts/`, define
+   templates that describe datasets, assumptions, and requested analyses. Ensure
+   the prompt builder injects variable descriptions and uncertainty information
+   before calling the LLM.
+5. **Add validation and safety mechanisms** – Implement verification routines in
+   `fme/agent/validation.py` so LLM claims are compared against ACE results or
+   known constraints. Add guardrails (content filters, citation requirements,
+   refusal handling) and log every interaction for reproducibility.
+6. **Ship user-facing interfaces** – Provide a CLI (and optionally a REST API)
+   so researchers can submit questions, monitor runs, and retrieve analyses.
+   Include integration tests that exercise these workflows with mocked LLM
+   providers.
+7. **Document setup and deployment** – Extend the documentation with setup
+   guides, environment configuration, and security recommendations. Consider
+   adding an example notebook that demonstrates an end-to-end analysis with a
+   mocked provider.
+
+This roadmap leverages the existing simulation infrastructure in `fme/ace/`
+while keeping LLM integrations modular and secure.
+
 ## Model checkpoints
 
 Pretrained model checkpoints are available in the [ACE Hugging Face](https://huggingface.co/collections/allenai/ace-67327d822f0f0d8e0e5e6ca4) collection.
