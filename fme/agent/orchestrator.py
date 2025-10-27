@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import asdict, dataclass, field, fields
-from typing import Any, Callable, Dict, Mapping, MutableMapping, Optional
+from typing import Any, Callable, Dict, Mapping, MutableMapping, Optional, Sequence
 
 try:  # pragma: no cover - optional dependency
     import yaml
@@ -28,6 +28,7 @@ from fme.ace.stepper import (
 
 from .prompt_routing import PromptRouter
 from .session_state import SessionState
+from .validation import VerificationLayer
 
 
 @dataclass
@@ -128,12 +129,14 @@ class AgentOrchestrator:
         config: AgentConfig,
         session_state: SessionState | None = None,
         llm_client: Callable[[str, AgentConfig], str] | None = None,
+        validator: VerificationLayer | None = None,
     ) -> None:
         self.config = config
         self.session_state = session_state or SessionState()
         self.llm_client = llm_client
         self._stepper: Stepper | None = None
         self._aggregator: Any | None = None
+        self.validator = validator
         self.router = PromptRouter(
             {
                 "run simulation": self.handle_run_simulation,
@@ -300,10 +303,15 @@ class AgentOrchestrator:
         if self.llm_client is None:
             raise RuntimeError("No LLM client configured for the orchestrator.")
         response = self.llm_client(prompt, self.config)
+        final_response = response
+        if self.validator is not None:
+            validation_context = self._build_validation_context()
+            result = self.validator.validate(prompt, response, context=validation_context)
+            final_response = result.final_response
         self.session_state.append_conversation("user", prompt)
-        self.session_state.append_conversation("assistant", response)
+        self.session_state.append_conversation("assistant", final_response)
         self.session_state.record_event("ask llm")
-        return response
+        return final_response
 
     # ------------------------------------------------------------------
     # Convenience API
@@ -312,5 +320,26 @@ class AgentOrchestrator:
         """Dispatch ``command`` through the prompt router."""
 
         return self.router.route(command, *args, **kwargs)
+
+    # ------------------------------------------------------------------
+    # Validation helpers
+    # ------------------------------------------------------------------
+    def _build_validation_context(self) -> Dict[str, Any]:
+        """Construct context used by the verification layer."""
+
+        context: Dict[str, Any] = {}
+        analysis = self.session_state.last_analysis
+        if isinstance(analysis, Mapping):
+            ace_outputs: Dict[str, Any] = {}
+            for key in ("claims", "facts", "summary"):
+                value = analysis.get(key)
+                if value is not None:
+                    ace_outputs[key] = value
+            if ace_outputs:
+                context["ace_outputs"] = ace_outputs
+            expected = analysis.get("expected_facts")
+            if isinstance(expected, Sequence) and not isinstance(expected, (str, bytes)):
+                context["expected_facts"] = list(expected)
+        return context
 
 

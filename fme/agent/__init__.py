@@ -3,10 +3,13 @@
 from .orchestrator import AgentConfig, AgentOrchestrator
 from .prompt_routing import PromptRouter
 from .session_state import SessionState
+from .validation import ValidationResult, VerificationLayer
 
 __all__ = [
     "AgentConfig",
     "AgentOrchestrator",
     "PromptRouter",
     "SessionState",
+    "ValidationResult",
+    "VerificationLayer",
 ]
