@@ -18,6 +18,7 @@ climate model emulators, such as the Ai2 Climate Emulator.
    builder
    modules
    steps
+   llm_research_agent
    api
 
 Indices and tables
